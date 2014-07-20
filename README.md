@@ -17,7 +17,7 @@ There are 9 commands and 1 debug command.
 <dt>[</dt><dd>push program counter to the rstack</dd>
 <dt>]</dt><dd>pop from the stack, if the value is 0, pop from the rstack; otherwise, pop from the rstack and set to the program counter</dd>
 <dt>.</dt><dd>pop from stack and write to stdout</dd>
-<dt>,</dt><dd>read from stdin and push to stdin</dd>
+<dt>,</dt><dd>read 1 byte from stdin, push the byte to the stack, and push 1 to the stack. if end of file, push 0 to the stack</dd>
 <dt>s</dt><dd>print the stack and the rstack to stderr (for debugging)</dd>
 <dt>others</dt><dd>no operation</dd>
 </dl>
