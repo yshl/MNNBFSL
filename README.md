@@ -3,10 +3,10 @@ MNNBFSL
 
 Mada Namae no Nai BrainFuck fu Stack Language
 
-# Stack
+## Stack
 MNNBFSL interpreter has 2 stacks, stack and rstack.
 
-# Commands
+## Commands
 There are 9 commands and 1 debug command.
 <dl>
 <dt>"</dt><dd>duplicate value on top of the stack</dd>
