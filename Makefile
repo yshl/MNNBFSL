@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -O2 -DDEBUG
+CFLAGS=-Wall -O3 -DDEBUG
 
 all: mnnbfsl
 
