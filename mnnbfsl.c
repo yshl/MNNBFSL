@@ -34,136 +34,153 @@ char* readsource(char* filename, size_t* srcsize)
     return source;
 }
 
-void push_stack(const char* stackname, size_t **stack, size_t *stacklen,
-	size_t *sp, size_t value)
+typedef struct {
+    const char *name;
+    size_t sp;
+    size_t length;
+    size_t *data;
+} Stack;
+
+void Stack_expand(Stack* stack, size_t newlen)
 {
-    if(*sp>=*stacklen){
-	size_t newlen=*sp+1024;
-	size_t *tmp=realloc(*stack, sizeof(size_t)*newlen);
+    if(newlen>stack->length){
+	size_t *tmp=realloc(stack->data, sizeof(*(stack->data))*newlen);
 	if(tmp==NULL){
-	    perror(stackname);
+	    perror(stack->name);
 	    exit(1);
 	}
-	*stack=tmp;
-	*stacklen=newlen;
+	stack->data = tmp;
+	stack->length = newlen;
     }
-    (*stack)[(*sp)++]=value;
 }
 
-void printstack(size_t *stack, size_t sp, size_t *rstack, size_t rsp)
+void Stack_init(Stack* stack, const char* stackname)
+{
+    stack->name=stackname;
+    stack->sp=0;
+    stack->length=0;
+    stack->data=NULL;
+    Stack_expand(stack, 1024);
+}
+
+void Stack_delete(Stack* stack)
+{
+    stack->sp=0;
+    stack->length=0;
+    free(stack->data);
+    stack->data=NULL;
+}
+
+void Stack_push(Stack* stack, size_t value)
+{
+    if(stack->sp >= stack->length){
+	Stack_expand(stack, stack->sp+1024);
+    }
+    stack->data[stack->sp++]=value;
+}
+
+size_t Stack_pop(Stack* stack)
+{
+    if(stack->sp<1){
+	fprintf(stderr, "%s underflow\n", stack->name);
+	exit(1);
+    }
+    return stack->data[--(stack->sp)];
+}
+
+void Stack_dup(Stack* stack)
+{
+    Stack_push(stack, stack->data[stack->sp-1]);
+}
+
+void Stack_inc(Stack* stack)
+{
+    if(stack->sp<1){
+	fprintf(stderr, "%s underflow\n", stack->name);
+	exit(1);
+    }
+    stack->data[stack->sp-1]++;
+}
+
+void Stack_dec(Stack* stack)
+{
+    if(stack->sp<1){
+	fprintf(stderr, "%s underflow\n", stack->name);
+	exit(1);
+    }
+    stack->data[stack->sp-1]--;
+}
+
+void printstack(Stack* stack, Stack* rstack)
 {
     size_t i;
-    for(i=0; i<sp; i++){
-	fprintf(stderr, "%zd ", stack[i]);
+    for(i=0; i<stack->sp; i++){
+	fprintf(stderr, "%zd ", stack->data[i]);
     }
     fprintf(stderr, "/");
-    for(i=rsp; i-->0;){
-	fprintf(stderr, " %zd", rstack[i]);
+    for(i=rstack->sp; i-->0; ){
+	fprintf(stderr, " %zd", rstack->data[i]);
     }
     fprintf(stderr, "\n");
 }
 
 void interpret(char* source, size_t srcsize)
 {
-    size_t pc=0, sp=0, rsp=0;
-    size_t *stack=NULL, *rstack=NULL;
-    size_t stacklen=1024, rstacklen=1024;
-    int ch;
+    size_t pc=0;
+    Stack stack, rstack;
 
-    stack=malloc(sizeof(*stack)*stacklen);
-    if(stack==NULL){
-	perror("Can't allocate stack memory");
-	exit(1);
-	return;
-    }
-    rstack=malloc(sizeof(*rstack)*stacklen);
-    if(rstack==NULL){
-	perror("Can't allocate rstack memory");
-	exit(1);
-	return;
-    }
+    Stack_init(&stack, "stack");
+    Stack_init(&rstack, "rstack");
+
     for(pc=0; pc<srcsize; pc++){
 	size_t rval;
+	int ch;
 	switch(source[pc]){
 	    case '"':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		push_stack("stack", &stack, &stacklen, &sp, stack[sp-1]);
+		Stack_dup(&stack);
 		break;
 	    case '+':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		stack[sp-1]++;
+		Stack_inc(&stack);
 		break;
 	    case '-':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		stack[sp-1]--;
+		Stack_dec(&stack);
 		break;
 	    case '<':
-		if(rsp<1){
-		    fprintf(stderr, "rstack underflow\n");
-		    exit(1);
-		}
-		push_stack("stack", &stack, &stacklen, &sp, rstack[--rsp]);
+		Stack_push(&stack, Stack_pop(&rstack));
 		break;
 	    case '>':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		push_stack("rstack", &rstack, &rstacklen, &rsp, stack[--sp]);
+		Stack_push(&rstack, Stack_pop(&stack));
 		break;
 	    case '[':
-		push_stack("rstack", &rstack, &rstacklen, &rsp, pc);
+		Stack_push(&rstack, pc);
 		break;
 	    case ']':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		if(rsp<1){
-		    fprintf(stderr, "rstack underflow\n");
-		    exit(1);
-		}
-		rval=rstack[--rsp];
-		if(stack[--sp]){
+		rval=Stack_pop(&rstack);
+		if(Stack_pop(&stack)){
 		    pc=rval-1;
 		}
 		break;
 	    case '.':
-		if(sp<1){
-		    fprintf(stderr, "stack underflow\n");
-		    exit(1);
-		}
-		putchar(stack[--sp]);
+		putchar(Stack_pop(&stack));
 		break;
 	    case ',':
 		ch=getchar();
-		if(ch==EOF){
-		    push_stack("stack", &stack, &stacklen, &sp, 0);
-		}else{
-		    push_stack("stack", &stack, &stacklen, &sp, ch);
-		    push_stack("stack", &stack, &stacklen, &sp, 1);
+		if(ch!=EOF){
+		    Stack_push(&stack, ch);
 		}
+		Stack_push(&stack, ch!=EOF);
 		break;
 #ifdef DEBUG
 	    case 's':
-		printstack(stack, sp, rstack, rsp);
+		printstack(&stack, &rstack);
 		break;
 #endif
 	    default:
 		break;
 	}
     }
-    free(stack);
-    free(rstack);
+    Stack_delete(&stack);
+    Stack_delete(&rstack);
 }
 
 int main(int argc, char **filenames)
